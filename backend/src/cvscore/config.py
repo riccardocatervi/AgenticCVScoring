@@ -30,6 +30,8 @@ class Settings(ServiceSettings):
     k_consumers: int = 2
     max_agent_steps: int = 10
     job_ttl_seconds: int = 3600
+    max_queue: int = 100  # waiting jobs before the API answers 503
+    job_timeout_seconds: float = 600.0
 
 
 @lru_cache

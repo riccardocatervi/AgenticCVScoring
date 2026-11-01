@@ -13,9 +13,6 @@ JD = "We are hiring a Python developer who knows Docker."
 PDF = make_pdf(["JOHN DOE", "Python developer"])
 
 
-pytestmark = pytest.mark.skip(reason="API is not implemented yet")
-
-
 def a_result() -> AnalysisResult:
     breakdown = ScoreResult(
         score=80, must_met=1, must_total=1, nice_met=0, nice_total=0, per_requirement=[]
