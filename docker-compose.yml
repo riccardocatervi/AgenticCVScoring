@@ -1,0 +1,88 @@
+# The whole stack: frontend (nginx) -> api (FastAPI + job queue + agents) -> gateway (MCP) -> services.
+# Settings come from .env (copy .env.example). See docs/deploy.md.
+#
+#   docker compose up --build -d                     # LLM outside compose (OpenAI, Ollama on the host)
+#   docker compose --profile ollama up --build -d    # also run Ollama in a container (NVIDIA GPU)
+
+x-backend: &backend
+  build: ./backend
+  image: cvscore-backend
+  env_file: .env
+  volumes:
+    - cv-data:/data # API writes the CVs, the gateway's services read them: must be shared
+  restart: unless-stopped
+
+services:
+  gateway:
+    <<: *backend
+    command: ["python", "-m", "cvscore.mcp_server"]
+    environment:
+      STORAGE_DIR: /data
+      # Bind address inside the container. Not 127.0.0.1: the API connects from another container.
+      MCP_GATEWAY_URL: http://0.0.0.0:8765/mcp
+    # No ports: the gateway has no authentication, so it stays on the private network.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 8765), 3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    <<: *backend
+    environment:
+      STORAGE_DIR: /data
+      MCP_GATEWAY_URL: http://gateway:8765/mcp
+    extra_hosts:
+      - host.docker.internal:host-gateway # Ollama running on the host, also on Linux
+    ports:
+      - 127.0.0.1:8000:8000 # local only: debugging and the load test
+    depends_on:
+      gateway:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+        required: false # only when the "ollama" profile is active
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build: ./frontend
+    image: cvscore-frontend
+    ports:
+      - 8080:80
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Optional local model server, for the final setup (open-weight model on a 24 GB GPU).
+  # Then set LLM_BASE_URL=http://ollama:11434/v1 in .env and pull the model once:
+  #   docker compose exec ollama ollama pull <model>
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ollama"]
+    environment:
+      OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL:-1} # requests served at once; keep K_CONSUMERS <= this
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-30m} # keep the model in VRAM between jobs
+    volumes:
+      - ollama-models:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  cv-data:
+  ollama-models:
