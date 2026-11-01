@@ -50,7 +50,11 @@ Poll this until `status` is `done` or `failed`.
 }
 ```
 
-- `step` is a short, human-readable text, set while `status` is `processing`.
+- `step` is a short, human-readable text, set while `status` is `processing`. The frontend
+  matches these exact texts to animate the architecture view (`frontend/src/lib/stages.ts`),
+  so changing one means changing the frontend too:
+  `Analyzing the job description`, `Searching the CV for evidence`,
+  `Verifying the quotes against the CV`, `Computing the score`, `Writing suggestions`.
 - `result` is set when `status` is `done`:
 
 ```json
