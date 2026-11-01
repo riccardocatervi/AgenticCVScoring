@@ -81,6 +81,14 @@ Poll this until `status` is `done` or `failed`.
 - `error` is set when `status` is `failed`. It is always a message safe to show to the user.
 - `404` means the job is unknown or expired (finished jobs are forgotten after `JOB_TTL_SECONDS`).
 
+## Errors
+
+Every 4xx/5xx above returns `{"detail": "<message>"}`, a message safe to show to the user,
+for example `{"detail": "The service is busy, please try again later."}`.
+
+One exception: when a field is missing, FastAPI's own validation answers `422` with `detail` as a
+list of objects (`[{"loc": ["body", "cv"], "msg": "Field required", ...}]`), not a string.
+
 ## Rules
 
 - The score is a heuristic computed by code from the model's per-requirement verdicts. The UI
