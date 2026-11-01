@@ -1,4 +1,4 @@
-.PHONY: install check test gateway api
+.PHONY: install check test gateway api frontend-install frontend frontend-mock frontend-check
 
 install:
 	cd backend && uv sync
@@ -14,3 +14,15 @@ gateway:
 
 api:
 	cd backend && uv run uvicorn cvscore.api.app:app_factory --factory --port 8000
+
+frontend-install:
+	cd frontend && npm install
+
+frontend:
+	cd frontend && npm run dev
+
+frontend-mock:
+	cd frontend && npm run mock
+
+frontend-check:
+	cd frontend && npm run build && npm test
