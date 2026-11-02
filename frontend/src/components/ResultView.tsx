@@ -1,4 +1,6 @@
+import { useState } from "react";
 import type { AnalysisResult, Verdict } from "../types";
+import { FlowReplay } from "./FlowReplay";
 
 const VERDICT_LABEL: Record<Verdict, string> = { yes: "Yes", partial: "Partial", no: "No" };
 
@@ -7,12 +9,12 @@ interface Props {
   onReset: () => void;
 }
 
-export function ResultView({ result, onReset }: Props) {
+function Details({ result }: { result: AnalysisResult }) {
   const { breakdown, suggestions, score } = result;
   const byId = new Map(breakdown.per_requirement.map((r) => [r.requirement_id, r]));
 
   return (
-    <div className="result">
+    <>
       <section className="score-block">
         <div className="score-main">
           <span className="kicker mono">MATCH SCORE</span>
@@ -82,6 +84,25 @@ export function ResultView({ result, onReset }: Props) {
           </ol>
         )}
       </section>
+    </>
+  );
+}
+
+export function ResultView({ result, onReset }: Props) {
+  const [view, setView] = useState<"result" | "flow">("result");
+
+  return (
+    <div className="result">
+      <div className="view-switch" role="group" aria-label="What to show">
+        <button type="button" aria-pressed={view === "result"} onClick={() => setView("result")}>
+          Result
+        </button>
+        <button type="button" aria-pressed={view === "flow"} onClick={() => setView("flow")}>
+          How it worked
+        </button>
+      </div>
+
+      {view === "flow" ? <FlowReplay /> : <Details result={result} />}
 
       <div className="result-actions">
         <button type="button" className="secondary" onClick={onReset}>
