@@ -14,23 +14,14 @@ Three people, one repo. This is how we avoid stepping on each other.
 If you need to change a file you do not own, say so in the PR. For the shared contracts,
 get a yes from the other two first: a wrong contract costs more than any bug.
 
-## What is left to do (B and C)
+## Status
 
-The skeletons are in place: classes, signatures and a docstring that says what to do.
-The tests already exist and are skipped. The workflow is:
+Every part is implemented and every test is active: `uv run pytest` runs the whole stack,
+including `test_system.py` (API, queue, agents, gateway and services, with a scripted model
+instead of a real one). Still open: a run against a real model (OpenAI or Ollama), the
+benchmark in `scripts/bench_llm.py` against the FBK server, and a load test (`loadtest/`).
 
-1. Open the skipped test file for your area and delete the `pytestmark = pytest.mark.skip(...)` line.
-2. Run it, see it fail, write the code until it passes.
-3. `uv run ruff check` and `uv run ruff format` must be clean.
-
-| Who | Skeletons | Tests to enable |
-|---|---|---|
-| B | `mcp_server/services/{cv,verify,scoring}_service.py`, `llm/openai_client.py`, `scripts/bench_llm.py` | `test_services_*.py`, `test_openai_client.py` |
-| C | `jobs/manager.py`, `api/app.py` | `test_jobs.py`, `test_api.py` |
-
-When everything is in, `test_e2e_real.py` and `test_system.py` run a whole job through the
-real stack (with a scripted model instead of a real one). Enable `test_system.py` last.
-`pypdf` and `python-docx` are not in `pyproject.toml` yet: B adds them (`uv add pypdf python-docx`).
+Keep `uv run ruff check` and `uv run ruff format --check` clean, and a test for every change.
 
 ## Dependency rule
 

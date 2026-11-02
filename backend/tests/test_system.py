@@ -31,9 +31,6 @@ CV_LINES = [
 ]
 
 
-pytestmark = pytest.mark.skip(reason="needs the services, the LLM client, the queue and the API")
-
-
 def build_fake_openai_server(model: ScriptedAgentsLLM) -> FastAPI:
     app = FastAPI()
 

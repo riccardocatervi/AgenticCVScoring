@@ -8,8 +8,6 @@ from pydantic import BaseModel
 from cvscore.llm import LLMError
 from cvscore.llm.openai_client import OpenAICompatibleClient
 
-pytestmark = pytest.mark.skip(reason="OpenAI-compatible client is not implemented yet")
-
 
 def completion(content="hi", tool_calls=None, usage=(10, 3)):
     message = SimpleNamespace(content=content, tool_calls=tool_calls)
