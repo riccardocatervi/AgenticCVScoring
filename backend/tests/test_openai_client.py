@@ -123,3 +123,75 @@ async def test_empty_choices_is_an_error():
 
     with pytest.raises(LLMError, match="no choices"):
         await client.chat([])
+
+
+def refusal(message):
+    request = httpx.Request("POST", "http://x")
+    return openai.BadRequestError(message, response=httpx.Response(400, request=request), body=None)
+
+
+async def test_max_tokens_is_swapped_when_the_server_wants_max_completion_tokens():
+    unsupported = "Unsupported parameter: 'max_tokens'. Use 'max_completion_tokens' instead."
+    client, sdk = make([refusal(unsupported), completion("ok")])
+
+    response = await client.chat([], max_tokens=100)
+
+    assert response.content == "ok"
+    assert "max_tokens" in sdk.requests[0]
+    assert sdk.requests[1]["max_completion_tokens"] == 100
+    assert "max_tokens" not in sdk.requests[1]
+
+
+async def test_a_refused_temperature_is_dropped():
+    unsupported = "Unsupported value: 'temperature' does not support 0 with this model."
+    client, sdk = make([refusal(unsupported), completion("ok")])
+
+    await client.chat([])
+
+    assert "temperature" not in sdk.requests[1]
+
+
+async def test_the_lesson_is_remembered_for_the_next_calls():
+    unsupported = "Unsupported parameter: 'max_tokens'. Use 'max_completion_tokens' instead."
+    client, sdk = make([refusal(unsupported), completion("a"), completion("b")])
+
+    await client.chat([], max_tokens=50)
+    await client.chat([], max_tokens=60)
+
+    assert len(sdk.requests) == 3  # the second call needed no failed attempt first
+    assert sdk.requests[2]["max_completion_tokens"] == 60
+
+
+async def test_an_unrelated_bad_request_is_still_an_error():
+    client, sdk = make([refusal("invalid image"), completion("never")])
+
+    with pytest.raises(LLMError, match="rejected"):
+        await client.chat([])
+
+    assert len(sdk.requests) == 1
+
+
+async def test_reasoning_effort_none_is_added_when_tools_need_it():
+    needs = (
+        "Function tools with reasoning_effort are not supported. Set reasoning_effort to 'none'."
+    )
+    client, sdk = make([refusal(needs), completion("ok"), completion("again")])
+
+    await client.chat([], tools=[{"type": "function"}])
+    await client.chat([])
+
+    assert "reasoning_effort" not in sdk.requests[0]
+    assert sdk.requests[1]["reasoning_effort"] == "none"
+    assert sdk.requests[2]["reasoning_effort"] == "none"  # remembered
+
+
+async def test_several_refusals_in_a_row_are_all_fixed():
+    first = "Unsupported parameter: 'max_tokens'. Use 'max_completion_tokens' instead."
+    second = "Set reasoning_effort to 'none' to use function tools."
+    client, sdk = make([refusal(first), refusal(second), completion("ok")])
+
+    response = await client.chat([], max_tokens=10)
+
+    assert response.content == "ok"
+    assert sdk.requests[2]["max_completion_tokens"] == 10
+    assert sdk.requests[2]["reasoning_effort"] == "none"

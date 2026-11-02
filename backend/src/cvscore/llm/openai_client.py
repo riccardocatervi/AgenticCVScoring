@@ -42,6 +42,7 @@ class OpenAICompatibleClient:
         self._model = model
         self._max_retries = max_retries
         self._backoff_base = backoff_base
+        self._adapted: set[str] = set()  # parameters this server refused, learned at runtime
         # max_retries=0: the SDK would retry silently, we want to see and count every retry.
         self._client = client or AsyncOpenAI(
             base_url=base_url, api_key=api_key, timeout=timeout, max_retries=0
@@ -92,10 +93,52 @@ class OpenAICompatibleClient:
             latency_s=latency,
         )
 
+    def _adapt(self, params: dict[str, Any], exc: openai.BadRequestError) -> bool:
+        """Adjust `params` to a server that rejects one of them. True if something changed.
+
+        Servers disagree on a few parameters. Ollama only knows `max_tokens`, while OpenAI's newer
+        models only accept `max_completion_tokens`. Some of those models also refuse a custom
+        `temperature`, or refuse tools unless `reasoning_effort` is "none". The error text names
+        the culprit, so we fix the request and remember it for the next calls instead of failing.
+        """
+        text = str(exc)
+        if "max_completion_tokens" in text and "max_tokens" in params:
+            params["max_completion_tokens"] = params.pop("max_tokens")
+            self._adapted.add("max_tokens")
+            return True
+        if "temperature" in text and "temperature" in params:
+            del params["temperature"]
+            self._adapted.add("temperature")
+            return True
+        if "reasoning_effort" in text and "reasoning_effort" not in params:
+            params["reasoning_effort"] = "none"
+            self._adapted.add("reasoning_effort")
+            return True
+        return False
+
+    async def _create(self, params: dict[str, Any]):
+        """One request. A parameter the server refuses is fixed and the request sent again."""
+        # Apply what an earlier call already taught us about this server.
+        if "max_tokens" in self._adapted and "max_tokens" in params:
+            params["max_completion_tokens"] = params.pop("max_tokens")
+        if "temperature" in self._adapted:
+            params.pop("temperature", None)
+        if "reasoning_effort" in self._adapted:
+            params["reasoning_effort"] = "none"
+
+        for _ in range(3):  # at most one fix per adjustable parameter
+            try:
+                return await self._client.chat.completions.create(**params)
+            except openai.BadRequestError as exc:
+                if not self._adapt(params, exc):
+                    raise
+                log.info("llm request adapted to the server: %s", sorted(self._adapted))
+        return await self._client.chat.completions.create(**params)
+
     async def _create_with_retry(self, params: dict[str, Any]):
         for attempt in range(self._max_retries + 1):
             try:
-                return await self._client.chat.completions.create(**params)
+                return await self._create(params)
             except _RETRYABLE as exc:
                 if attempt == self._max_retries:
                     raise LLMError(
