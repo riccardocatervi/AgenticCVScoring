@@ -38,10 +38,18 @@ api -> jobs -> agents -> mcp_client -> (HTTP) -> mcp_server -> services
   the user message, never in a system prompt, and the JD Analyst has no tools.
 - Verdicts are `yes` / `partial` / `no` (English), not the Italian draft in the handoff.
 
+## Same input, same answer
+
+The score is computed by code, but the verdicts come from a model, which can answer differently
+each time. `JobManager.submit` keys a job by the bytes of the CV file and the job description
+(whitespace collapsed). A second request with the same key gets the first job back, whether it is
+waiting, running or done; a failed job is never reused. `REUSE_RESULTS=false` turns this off.
+
 ## Known limits
 
 - The gateway has no authentication.
-- Fuzzy verification (threshold 0.85) can accept a quote where only a number changed.
+- Fuzzy verification (threshold 0.85) accepts a typo, but a quote whose numbers differ from the
+  CV where it matched is rejected. A changed name or other detail can still pass.
 - The queue is in-process: jobs are lost on restart, one process only.
 - Only tested with a scripted model so far; real models, especially small ones, may need the
   "JSON action" fallback for tool calling.

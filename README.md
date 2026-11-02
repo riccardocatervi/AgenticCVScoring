@@ -212,6 +212,7 @@ Everything is read from `.env` (in the repository root, or in the folder you sta
 | `MAX_QUEUE` | `100` | Jobs allowed to wait; beyond this the API answers `503`. |
 | `JOB_TIMEOUT_SECONDS` | `600` | A running job is stopped and marked as failed after this. |
 | `JOB_TTL_SECONDS` | `3600` | Finished jobs and uploaded CVs are deleted after this. |
+| `REUSE_RESULTS` | `true` | The same CV file and job description get the same answer: the earlier job is returned. Set to `false` to run the model again every time. |
 | `STORAGE_DIR` | `data` | Where uploaded CVs are kept while a job runs. |
 | `MCP_GATEWAY_URL` | `http://127.0.0.1:8765/mcp` | Where the gateway listens, and where the API finds it. |
 | `OLLAMA_NUM_PARALLEL`, `OLLAMA_KEEP_ALIVE` | `1`, `30m` | Only for the Ollama container of `make up-ollama`. |
@@ -265,9 +266,19 @@ a 24 GB GPU are in [docs/deploy.md](docs/deploy.md).
    them, plus a text log of the same messages and a list of the five steps. If many people use
    the system at once your job waits in a queue first.
 4. When it ends you get the score, the requirements with their verdicts, and the suggestions.
-   Switch to **How it worked** to walk through the five stages again, one by one. It shows the
-   path every analysis follows, not a recording of your job.
-5. **New analysis** starts over. Your CV is deleted from the server when the job ends.
+   Switch to **How it worked** to see the architecture again. Nothing plays by itself: drag the
+   bar, use the arrow buttons or the keyboard arrows to move through the 25 messages one at a
+   time, or click a step on the left to jump to it. It shows the path every analysis follows, not
+   a recording of your job.
+5. **New analysis**, next to the two views, starts over. Your CV is deleted from the server when
+   the job ends.
+
+**The same input gives the same score.** A language model can answer differently each time, so
+sending the same CV file with the same job description again returns the earlier job instead of
+running the agents once more (the comparison ignores extra spaces in the job description, but
+not a re-saved file: different bytes count as a different CV). A job that failed is never
+reused. The earlier job is kept for `JOB_TTL_SECONDS`, then forgotten. Set
+`REUSE_RESULTS=false` when you want independent runs, for example to measure variation.
 
 The five steps the page knows about are the `step` texts the backend reports. They are listed in
 [docs/api-contract.md](docs/api-contract.md); changing one means changing
@@ -369,7 +380,11 @@ Still to do, in order of importance:
 - The job queue lives in the API process: **one API replica only**, and jobs are lost when it
   restarts.
 - The gateway has no authentication. It is protected only by not being published.
-- Fuzzy quote verification (threshold 0.85) can accept a quote where only a number changed.
+- Quote verification is fuzzy (similarity threshold 0.85, so a typo passes), but every number in
+  the quote must also appear where it matched: an invented "90%" is rejected. Other invented
+  details, like a changed company name, can still pass if the rest of the sentence matches.
+- A different file with the same content (re-saved, re-exported) is a different CV for the reuse
+  of results, so it can get a different score.
 - The upload check looks at the file's first bytes, not at the whole structure of the file.
 - With a weak model the agents may need a "JSON action" fallback instead of native tool calling.
   It is not implemented; it will be only if the benchmark says it is needed.
@@ -382,7 +397,8 @@ A CV is personal data.
 - Logs carry ids, step names and counters, **never the text of a CV or a job description**.
 - Uploaded CVs are deleted when their job ends; finished jobs are forgotten after
   `JOB_TTL_SECONDS`.
-- Nothing is shared between users: each job has its own memory.
+- Each job has its own memory. The only thing shared is the answer to an identical request:
+  whoever sends the very same CV file and job description gets the earlier job.
 - The job description and the CV are treated as untrusted input (see
   [Design rules](#design-rules-that-matter)).
 - Using the FBK server keeps the data inside the university's infrastructure. Using OpenAI sends
