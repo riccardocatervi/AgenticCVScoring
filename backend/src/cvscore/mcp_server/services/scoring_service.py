@@ -29,6 +29,7 @@ def compute_score(requirements: list[Requirement], matches: list[VerifiedMatch])
         rows.append(
             RequirementScore(
                 requirement_id=req.id,
+                text=req.text,
                 kind=req.kind,
                 verdict=verdict,
                 verified=verified,

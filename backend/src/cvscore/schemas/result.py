@@ -9,6 +9,7 @@ class RequirementScore(BaseModel):
     """How one requirement contributed to the score."""
 
     requirement_id: int
+    text: str  # the requirement as extracted from the job description, so the UI can show it
     kind: Literal["must", "nice"]
     verdict: Verdict
     verified: bool
