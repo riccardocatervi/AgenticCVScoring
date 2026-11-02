@@ -92,3 +92,14 @@ def test_corrupted_docx_is_a_service_error(store_cv):
 def test_unknown_cv_id(store_cv):
     with pytest.raises(StorageError):
         cv_service.parse_cv("0" * 32)
+
+
+def test_less_common_headings_start_a_section(store_cv):
+    cv_id = store_cv(
+        make_docx(["Jane Doe", "Employment", "Built APIs.", "Volunteering", "Taught Python."]),
+        "c.docx",
+    )
+
+    names = [s.name for s in cv_service.parse_cv(cv_id).sections]
+
+    assert names == ["Header", "Employment", "Volunteering"]

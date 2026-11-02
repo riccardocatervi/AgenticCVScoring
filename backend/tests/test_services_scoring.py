@@ -78,3 +78,13 @@ def test_match_for_unknown_requirement_is_rejected():
 def test_duplicate_matches_are_rejected():
     with pytest.raises(ValueError, match="two matches"):
         compute_score([req(1)], [match(1, "yes"), match(1, "no")])
+
+
+def test_no_requirements_is_rejected_instead_of_dividing_by_zero():
+    with pytest.raises(ValueError, match="at least one requirement"):
+        compute_score([], [])
+
+
+def test_duplicate_requirement_ids_are_rejected():
+    with pytest.raises(ValueError, match="must be unique"):
+        compute_score([req(1), req(1, "nice")], [match(1, "yes")])

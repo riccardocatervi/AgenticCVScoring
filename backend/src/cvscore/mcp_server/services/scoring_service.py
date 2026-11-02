@@ -10,7 +10,11 @@ _OUTCOME = {"yes": 1.0, "partial": 0.5, "no": 0.0}
 
 
 def compute_score(requirements: list[Requirement], matches: list[VerifiedMatch]) -> ScoreResult:
+    if not requirements:
+        raise ValueError("at least one requirement is required")
     by_id = {r.id: r for r in requirements}
+    if len(by_id) != len(requirements):
+        raise ValueError("requirement ids must be unique")
     matched: dict[int, VerifiedMatch] = {}
     for match in matches:
         if match.requirement_id not in by_id:
