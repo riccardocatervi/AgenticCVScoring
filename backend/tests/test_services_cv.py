@@ -5,10 +5,6 @@ from cvscore.mcp_server.services import cv_service
 from cvscore.mcp_server.services.errors import ServiceError
 from cvscore.storage import StorageError
 
-pytestmark = pytest.mark.skip(
-    reason="TODO(services owner): implement the services, then delete this line"
-)
-
 
 @pytest.fixture(params=["pdf", "docx"])
 def cv_id(request, store_cv):
