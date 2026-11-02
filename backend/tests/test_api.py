@@ -65,6 +65,14 @@ async def test_upload_returns_202_and_the_job_completes(client):
     assert body["result"]["score"] == 80
 
 
+async def test_the_same_upload_twice_gives_the_same_job(client):
+    first = (await client.post("/api/analyze", **upload())).json()["job_id"]
+    second = (await client.post("/api/analyze", **upload())).json()["job_id"]
+
+    assert second == first
+    assert (await poll(client, second))["status"] == "done"
+
+
 async def test_unknown_job_is_404(client):
     assert (await client.get("/api/jobs/" + "f" * 32)).status_code == 404
 
@@ -96,7 +104,8 @@ async def test_503_when_the_queue_is_full(tmp_path, monkeypatch):
     async with AsyncClient(transport=transport, base_url="http://t") as c:
         app.state.manager = manager  # no lifespan here: the queue is never consumed
         assert (await c.post("/api/analyze", **upload())).status_code == 202
-        response = await c.post("/api/analyze", **upload())
+        # a different job description: the same one would be answered with the first job
+        response = await c.post("/api/analyze", **upload(jd=JD + " Also Kubernetes."))
     get_service_settings.cache_clear()
 
     assert response.status_code == 503

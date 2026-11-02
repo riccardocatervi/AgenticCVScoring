@@ -7,6 +7,7 @@ from cvscore.agents import JobFailed, run_job
 from cvscore.jobs import JobManager, QueueFull
 from cvscore.llm import LLMError
 from cvscore.schemas import AnalysisResult, ScoreResult
+from cvscore.storage import save_cv
 
 CV_ID = "a" * 32
 
@@ -179,3 +180,97 @@ async def test_many_jobs_through_the_real_orchestrator(make_manager):
 
     assert [s.status for s in states] == ["done"] * 40
     assert {s.result.score for s in states} == {70}
+
+
+# --- The same CV and job description give the same answer ---------------------------------------
+
+
+def stored_cv(tmp_path, content: bytes = b"%PDF-1.4 the same cv") -> str:
+    return save_cv(content, "cv.pdf", tmp_path)
+
+
+def counting_runner(calls: list[str], fail_first: bool = False):
+    async def runner(job_id, cv_id, jd_text, on_step):
+        calls.append(job_id)
+        if fail_first and len(calls) == 1:
+            raise LLMError("model unavailable")
+        return result(len(calls))  # a different score on every real run
+
+    return runner
+
+
+async def test_same_cv_and_job_description_reuse_the_job(make_manager, tmp_path):
+    calls: list[str] = []
+    manager = make_manager(counting_runner(calls))
+    manager.start()
+    first = manager.submit(stored_cv(tmp_path), "Python and  Docker")
+    await wait_for(manager, first)
+
+    second_cv = stored_cv(tmp_path)  # same bytes, uploaded again, jd spaced differently
+    assert (tmp_path / "cv" / second_cv).exists()
+    second = manager.submit(second_cv, "Python and Docker\n")
+
+    assert second == first
+    assert manager.get(second).status == "done"
+    assert len(calls) == 1
+    assert not (tmp_path / "cv" / second_cv).exists()  # the duplicate upload is gone
+
+
+async def test_a_job_that_is_still_waiting_is_reused_too(make_manager, tmp_path):
+    manager = make_manager(counting_runner([]))  # not started: the first job stays queued
+
+    first = manager.submit(stored_cv(tmp_path), "the jd")
+    second = manager.submit(stored_cv(tmp_path), "the jd")
+
+    assert second == first
+
+
+async def test_a_different_job_description_or_cv_runs_again(make_manager, tmp_path):
+    calls: list[str] = []
+    manager = make_manager(counting_runner(calls))
+    manager.start()
+    base = manager.submit(stored_cv(tmp_path), "the jd")
+    other_jd = manager.submit(stored_cv(tmp_path), "another jd")
+    other_cv = manager.submit(stored_cv(tmp_path, b"%PDF-1.4 another cv"), "the jd")
+
+    assert len({base, other_jd, other_cv}) == 3
+    for job_id in (base, other_jd, other_cv):
+        await wait_for(manager, job_id)
+    assert len(calls) == 3
+
+
+async def test_a_failed_job_is_not_reused(make_manager, tmp_path):
+    calls: list[str] = []
+    manager = make_manager(counting_runner(calls, fail_first=True))
+    manager.start()
+    first = manager.submit(stored_cv(tmp_path), "the jd")
+    assert (await wait_for(manager, first)).status == "failed"
+
+    second = manager.submit(stored_cv(tmp_path), "the jd")
+
+    assert second != first
+    assert (await wait_for(manager, second)).status == "done"
+
+
+async def test_reuse_can_be_turned_off(make_manager, tmp_path):
+    manager = make_manager(counting_runner([]), reuse_results=False)
+
+    first = manager.submit(stored_cv(tmp_path), "the jd")
+    second = manager.submit(stored_cv(tmp_path), "the jd")
+
+    assert second != first
+
+
+async def test_a_swept_job_is_not_reused(make_manager, tmp_path):
+    calls: list[str] = []
+    manager = make_manager(counting_runner(calls), ttl_seconds=10)
+    manager.start()
+    first = manager.submit(stored_cv(tmp_path), "the jd")
+    await wait_for(manager, first)
+
+    manager.sweep(now=10**12)  # long after the TTL
+    second = manager.submit(stored_cv(tmp_path), "the jd")
+
+    assert second != first
+    await wait_for(manager, second)
+    assert len(calls) == 2

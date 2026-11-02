@@ -6,6 +6,7 @@ waits in the queue longer than the TTL could lose its CV (unlikely with TTL >> j
 """
 
 import asyncio
+import hashlib
 import logging
 import time
 import uuid
@@ -18,7 +19,7 @@ from cvscore.llm.base import LLMError
 from cvscore.logging_setup import job_id_var
 from cvscore.mcp_client import GatewayError
 from cvscore.schemas import AnalysisResult, JobState
-from cvscore.storage import delete_cv, purge_expired
+from cvscore.storage import StorageError, delete_cv, get_cv_path, purge_expired
 
 log = logging.getLogger("cvscore.jobs")
 
@@ -42,6 +43,7 @@ class _Job:
     cv_id: str
     jd_text: str | None  # dropped as soon as the job ends
     finished_at: float | None = None
+    key: str | None = None  # same CV file and same job description give the same key
 
 
 class JobManager:
@@ -54,6 +56,7 @@ class JobManager:
         job_timeout: float = 600.0,
         ttl_seconds: int = 3600,
         storage_dir: Path | None = None,
+        reuse_results: bool = True,
     ):
         """Keep the settings. Queue and job dict are created here, tasks only in start()."""
         self._runner = runner
@@ -63,6 +66,8 @@ class JobManager:
         self._storage_dir = storage_dir
         self._queue: asyncio.Queue[str] = asyncio.Queue(maxsize=max_queue)
         self._jobs: dict[str, _Job] = {}
+        self._reuse_results = reuse_results
+        self._by_key: dict[str, str] = {}  # input key -> id of the job that has it
         self._tasks: list[asyncio.Task] = []
 
     def start(self) -> None:
@@ -82,15 +87,39 @@ class JobManager:
         await asyncio.gather(*self._tasks, return_exceptions=True)
         self._tasks = []
 
+    def _key_for(self, cv_id: str, jd_text: str) -> str | None:
+        """Identify the input: the bytes of the CV file and the job description, whitespace aside."""
+        if not self._reuse_results:
+            return None
+        try:
+            cv_bytes = get_cv_path(cv_id, self._storage_dir).read_bytes()
+        except (StorageError, OSError):
+            return None
+        digest = hashlib.sha256(cv_bytes)
+        digest.update(b"\0" + " ".join(jd_text.split()).encode())
+        return digest.hexdigest()
+
     def submit(self, cv_id: str, jd_text: str) -> str:
-        """Register a job as `queued`, put it in the queue and return its id (uuid4 hex)."""
+        """Register a job as `queued`, put it in the queue and return its id (uuid4 hex).
+
+        The same CV file with the same job description gives the same answer: a model is not
+        deterministic, so instead of running the analysis again the earlier job (waiting, running
+        or done, never a failed one) is returned. The duplicate upload is deleted at once.
+        """
+        key = self._key_for(cv_id, jd_text)
+        if key is not None and (earlier := self._by_key.get(key)) in self._jobs:
+            delete_cv(cv_id, self._storage_dir)
+            log.info("reused job=%s", earlier)
+            return earlier
         job_id = uuid.uuid4().hex
         try:
             self._queue.put_nowait(job_id)
         except asyncio.QueueFull:
             raise QueueFull from None
         # No await since put_nowait: no consumer can pick the id before it is registered.
-        self._jobs[job_id] = _Job(JobState(id=job_id, status="queued"), cv_id, jd_text)
+        self._jobs[job_id] = _Job(JobState(id=job_id, status="queued"), cv_id, jd_text, key=key)
+        if key is not None:
+            self._by_key[key] = job_id
         log.info("queued job=%s waiting=%d", job_id, self._queue.qsize())
         return job_id
 
@@ -145,9 +174,15 @@ class JobManager:
             log.info("done score=%d", result.score)
         finally:
             job.finished_at = time.time()
+            if state.status == "failed":
+                self._forget_key(job)  # a failure is never reused: the next try runs again
             job.jd_text = None
             delete_cv(job.cv_id, self._storage_dir)  # a CV is personal data
             job_id_var.reset(token)
+
+    def _forget_key(self, job: _Job) -> None:
+        if job.key is not None and self._by_key.get(job.key) == job.state.id:
+            del self._by_key[job.key]
 
     @staticmethod
     def _fail(state: JobState, message: str, exc: BaseException) -> None:
@@ -168,6 +203,7 @@ class JobManager:
             if job.finished_at is not None and now - job.finished_at > self._ttl_seconds
         ]
         for job_id in expired:
+            self._forget_key(self._jobs[job_id])
             del self._jobs[job_id]
         purge_expired(self._ttl_seconds, self._storage_dir, now=now)
         return len(expired)

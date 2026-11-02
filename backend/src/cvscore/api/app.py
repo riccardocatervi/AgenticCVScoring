@@ -49,6 +49,7 @@ def build_manager() -> JobManager:
         job_timeout=settings.job_timeout_seconds,
         ttl_seconds=settings.job_ttl_seconds,
         storage_dir=settings.storage_dir,
+        reuse_results=settings.reuse_results,
     )
 
 
