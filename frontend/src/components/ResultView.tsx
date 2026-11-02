@@ -93,22 +93,24 @@ export function ResultView({ result, onReset }: Props) {
 
   return (
     <div className="result">
-      <div className="view-switch" role="group" aria-label="What to show">
-        <button type="button" aria-pressed={view === "result"} onClick={() => setView("result")}>
-          Result
-        </button>
-        <button type="button" aria-pressed={view === "flow"} onClick={() => setView("flow")}>
-          How it worked
+      <div className="view-bar">
+        <div className="view-switch" role="group" aria-label="What to show">
+          <button type="button" aria-pressed={view === "result"} onClick={() => setView("result")}>
+            Result
+          </button>
+          <button type="button" aria-pressed={view === "flow"} onClick={() => setView("flow")}>
+            How it worked
+          </button>
+        </div>
+        <button type="button" className="new-analysis" onClick={onReset}>
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
+            <path d="M8 2.5v11M2.5 8h11" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+          </svg>
+          New analysis
         </button>
       </div>
 
       {view === "flow" ? <FlowReplay /> : <Details result={result} />}
-
-      <div className="result-actions">
-        <button type="button" className="secondary" onClick={onReset}>
-          New analysis
-        </button>
-      </div>
     </div>
   );
 }

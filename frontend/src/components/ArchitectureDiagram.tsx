@@ -1,5 +1,13 @@
 import { useLayoutEffect, useRef } from "react";
-import { cycleSeconds, slotWindow, type EdgeId, type NodeId, type Stage } from "../lib/stages";
+import {
+  STEP_REST,
+  STEP_SECONDS,
+  cycleSeconds,
+  slotWindow,
+  type EdgeId,
+  type NodeId,
+  type Stage,
+} from "../lib/stages";
 
 // One coordinate system (880 x 540) for everything: lines, boxes and moving messages.
 const VIEW_W = 880;
@@ -63,9 +71,14 @@ interface Props {
   done: Set<NodeId>;
   /** Change it to start the loop again from its first message (same stage). */
   restartKey?: number;
+  /**
+   * Show only this message of the stage: it crosses its edge once and stays at the end, so it can
+   * be read at any speed. Without it the whole stage loops by itself.
+   */
+  step?: number;
 }
 
-export function ArchitectureDiagram({ stage, done, restartKey = 0 }: Props) {
+export function ArchitectureDiagram({ stage, done, restartKey = 0, step }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const stageId = stage.step ?? stage.title;
 
@@ -77,13 +90,18 @@ export function ArchitectureDiagram({ stage, done, restartKey = 0 }: Props) {
     if (!svg) return;
     svg.setCurrentTime(0);
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      svg.pauseAnimations(); // no moving messages: the lit boxes and the log carry the story
+      svg.pauseAnimations();
+      // No travelling: a single message jumps straight to where it ends. A loop just stays still,
+      // and the lit boxes and the log carry the story.
+      if (step !== undefined) svg.setCurrentTime(STEP_SECONDS);
     } else {
       svg.unpauseAnimations();
     }
-  }, [stageId, restartKey]);
+  }, [stageId, restartKey, step]);
 
   const busy = new Set(stage.nodes);
+  const single = step === undefined ? undefined : stage.flows[step];
+  const ends = new Set<NodeId>(single ? [single.from, single.to] : []);
   const cycle = cycleSeconds(stage);
   const count = stage.flows.length;
 
@@ -115,8 +133,9 @@ export function ArchitectureDiagram({ stage, done, restartKey = 0 }: Props) {
       </g>
 
       {/* the part of the line a message is crossing right now turns black */}
-      <g className="edge-lit" key={`lit-${stageId}-${restartKey}`}>
-        {[...windowsByEdge.entries()].map(([id, windows]) => {
+      <g className="edge-lit" key={`lit-${stageId}-${restartKey}-${step ?? "loop"}`}>
+        {single && <use href={`#edge-${single.edge}`} />}
+        {!single && [...windowsByEdge.entries()].map(([id, windows]) => {
           const { keyTimes, values } = visibility(windows);
           return (
             <use key={id} href={`#edge-${id}`} opacity="0">
@@ -138,7 +157,7 @@ export function ArchitectureDiagram({ stage, done, restartKey = 0 }: Props) {
         const x = node.cx - node.w / 2;
         const y = node.cy - node.h / 2;
         return (
-          <g key={id} className={`node ${node.kind} ${state}`}>
+          <g key={id} className={`node ${node.kind} ${state}${ends.has(id) ? " ends" : ""}`}>
             <rect x={x} y={y} width={node.w} height={node.h} rx={node.h / 2} />
             <circle className="status" cx={x + 22} cy={node.cy} r="5" />
             <text className="label" x={node.cx + 8} y={node.cy + 5}>
@@ -159,8 +178,30 @@ export function ArchitectureDiagram({ stage, done, restartKey = 0 }: Props) {
       })}
 
       {/* one chip per message; each one moves during its own slot of the loop */}
-      <g className="packets" key={`packets-${stageId}-${restartKey}`}>
-        {stage.flows.map((flow, position) => {
+      <g className="packets" key={`packets-${stageId}-${restartKey}-${step ?? "loop"}`}>
+        {single && (
+          <g>
+            <animateMotion
+              dur={`${STEP_SECONDS}s`}
+              fill="freeze"
+              calcMode="spline"
+              keyTimes="0;1"
+              keySplines="0.16 1 0.3 1"
+              keyPoints={single.reverse ? `1;${1 - STEP_REST}` : `0;${STEP_REST}`}
+            >
+              <mpath href={`#edge-${single.edge}`} />
+            </animateMotion>
+            <rect
+              x={-(Math.round(single.label.length * 7.1 + 24)) / 2}
+              y="-12"
+              width={Math.round(single.label.length * 7.1 + 24)}
+              height="24"
+              rx="12"
+            />
+            <text y="4">{single.label}</text>
+          </g>
+        )}
+        {!single && stage.flows.map((flow, position) => {
           const { start, end } = slotWindow(position, count);
           const width = Math.round(flow.label.length * 7.1 + 24);
           const { keyTimes, values } = visibility([{ start, end }]);

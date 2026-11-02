@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { STAGES, STARTING, cycleSeconds, doneNodes, slotWindow, stageFor } from "./stages";
+import {
+  STAGES,
+  STARTING,
+  TOTAL_FLOWS,
+  cycleSeconds,
+  doneNodes,
+  firstPositionOf,
+  locate,
+  slotWindow,
+  stageFor,
+} from "./stages";
 
 describe("stageFor", () => {
   it("maps every known backend step to its own stage", () => {
@@ -66,6 +76,31 @@ describe("doneNodes", () => {
   it("never marks a busy node as done", () => {
     STAGES.forEach((stage, index) => {
       for (const node of stage.nodes) expect(doneNodes(index).has(node)).toBe(false);
+    });
+  });
+});
+
+describe("locate and firstPositionOf", () => {
+  it("walks every message of every stage exactly once, in order", () => {
+    const seen = Array.from({ length: TOTAL_FLOWS }, (_, p) => locate(p));
+    const expected = STAGES.flatMap((stage, stageIndex) =>
+      stage.flows.map((_, flowIndex) => ({ stageIndex, flowIndex })),
+    );
+    expect(seen).toEqual(expected);
+  });
+
+  it("clamps positions outside the range", () => {
+    expect(locate(-3)).toEqual({ stageIndex: 0, flowIndex: 0 });
+    const last = STAGES.length - 1;
+    expect(locate(TOTAL_FLOWS + 10)).toEqual({
+      stageIndex: last,
+      flowIndex: (STAGES[last]?.flows.length ?? 1) - 1,
+    });
+  });
+
+  it("finds the first message of each stage", () => {
+    STAGES.forEach((_, stageIndex) => {
+      expect(locate(firstPositionOf(stageIndex))).toEqual({ stageIndex, flowIndex: 0 });
     });
   });
 });
