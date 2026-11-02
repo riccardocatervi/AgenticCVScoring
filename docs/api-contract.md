@@ -96,6 +96,9 @@ list of objects (`[{"loc": ["body", "cv"], "msg": "Field required", ...}]`), not
 
 ## Rules
 
+- The same CV file with the same job description gets the same answer: `POST /api/analyze`
+  returns the `job_id` of the earlier job (waiting, running or done) instead of starting a new
+  one. A failed job is never reused. Set `REUSE_RESULTS=false` to disable it.
 - The score is a heuristic computed by code from the model's per-requirement verdicts. The UI
   should present it as an estimate, not as a truth.
 - Verdicts are `yes`, `partial`, `no` (English).
