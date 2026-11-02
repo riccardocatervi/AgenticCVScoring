@@ -17,7 +17,8 @@ MAX_CHARS = 60_000
 KNOWN_HEADINGS = {
     "summary", "profile", "objective", "experience", "work experience",
     "professional experience", "education", "skills", "technical skills", "projects",
-    "languages", "certifications", "publications", "interests", "awards",
+    "languages", "certifications", "certificates", "publications", "interests", "awards",
+    "employment", "career history", "volunteering", "references", "contact",
     # Italian CVs
     "profilo", "esperienza", "esperienze", "esperienza lavorativa", "formazione",
     "istruzione", "competenze", "competenze tecniche", "progetti", "lingue",

@@ -47,6 +47,20 @@ def test_small_typo_still_passes(cv_id):
     assert result.similarity < 1.0
 
 
+def test_a_changed_number_is_not_accepted(cv_id):
+    # One character apart, similarity is above the threshold, but the figure is invented.
+    quote = "Reduced latency by 90% using caching"
+
+    result = verify_service.verify_evidence(cv_id, quote)
+
+    assert not result.found
+    assert result.similarity > 0.85  # the text alone would have passed
+
+
+def test_the_same_numbers_with_a_typo_still_pass(cv_id):
+    assert verify_service.verify_evidence(cv_id, "Reduced latency by 40% using cachng").found
+
+
 def test_invented_claim_is_not_found(cv_id):
     quote = "Led a team of ten engineers migrating the platform to Kubernetes"
 
