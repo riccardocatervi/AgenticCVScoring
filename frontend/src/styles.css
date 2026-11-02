@@ -383,13 +383,19 @@ textarea:focus-visible {
   text-align: left;
   cursor: pointer;
 }
+.view-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+}
 .view-switch {
   display: flex;
   gap: 8px;
-  align-self: flex-start;
 }
 .view-switch button {
-  padding: 8px 16px;
+  min-height: 44px;
+  padding: 0 18px;
   border: 2px solid var(--ink);
   border-radius: 999px;
   background: none;
@@ -400,6 +406,29 @@ textarea:focus-visible {
 .view-switch button[aria-pressed="true"] {
   background: var(--ink);
   color: var(--bg);
+}
+.view-switch button:not([aria-pressed="true"]):hover {
+  background: var(--paper);
+}
+.new-analysis {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 4px 0 20px;
+  border: 0;
+  border-left: 2px solid var(--hair);
+  background: none;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+}
+.new-analysis:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
 }
 .explain {
   font-size: 14px;
@@ -511,21 +540,180 @@ textarea:focus-visible {
   font-size: 14px;
 }
 .flow-log li {
-  display: grid;
-  grid-template-columns: 28px 1fr auto;
-  gap: 12px;
-  align-items: baseline;
-  padding: 6px 10px;
   border-radius: 8px;
-  transition: background 0.2s;
+  transition: background 0.2s, color 0.2s;
 }
 .flow-log li.active {
   background: var(--ink);
   color: var(--bg);
 }
+.flow-log .log-row {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  gap: 12px;
+  align-items: baseline;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+.flow-log button.log-row {
+  cursor: pointer;
+  border-radius: 8px;
+}
+.flow-log button.log-row:hover {
+  background: var(--paper);
+}
+.flow-log li.active button.log-row:hover {
+  background: transparent;
+}
 .flow-log .payload {
   font-size: 13px;
   opacity: 0.75;
+}
+
+/* Step scrubber in the replay */
+.node.ends rect {
+  stroke: var(--accent);
+}
+.scrubber {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.scrub-caption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  min-height: 28px;
+}
+.scrub-route {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+.scrub-caption .payload {
+  font-size: 14px;
+}
+.scrub-count {
+  margin-left: auto;
+}
+.scrub-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.step-btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: #fff;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+}
+.step-btn:hover:not(:disabled) {
+  background: var(--paper);
+}
+.step-btn:active:not(:disabled) {
+  background: var(--track);
+}
+.step-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.scrub-track {
+  --thumb: 20px;
+  /* the filled part of the bar ends under the centre of the thumb */
+  --fill: calc(var(--thumb) / 2 + (100% - var(--thumb)) * var(--now, 0));
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 30px;
+}
+.scrub-track input[type="range"] {
+  display: block;
+  width: 100%;
+  height: 44px;
+  margin: 0;
+  background: transparent;
+  cursor: grab;
+  -webkit-appearance: none;
+  appearance: none;
+  touch-action: pan-y;
+}
+.scrub-track input[type="range"]:active {
+  cursor: grabbing;
+}
+.scrub-track input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background:
+    linear-gradient(var(--ink), var(--ink)) 0 / var(--fill) 100% no-repeat,
+    var(--track);
+}
+.scrub-track input[type="range"]::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background:
+    linear-gradient(var(--ink), var(--ink)) 0 / var(--fill) 100% no-repeat,
+    var(--track);
+}
+.scrub-track input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: var(--thumb);
+  height: var(--thumb);
+  margin-top: calc((6px - var(--thumb)) / 2);
+  border: 3px solid var(--bg);
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--ink);
+}
+.scrub-track input[type="range"]::-moz-range-thumb {
+  width: calc(var(--thumb) - 6px);
+  height: calc(var(--thumb) - 6px);
+  border: 3px solid var(--bg);
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--ink);
+}
+.scrub-ruler {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 30px;
+  pointer-events: none;
+}
+.scrub-ruler .tick,
+.scrub-ruler .stage-no {
+  position: absolute;
+  left: calc(var(--thumb) / 2 + (100% - var(--thumb)) * var(--at));
+  transform: translateX(-50%);
+}
+.scrub-ruler .tick {
+  top: 0;
+  width: 2px;
+  height: 6px;
+  border-radius: 1px;
+  background: var(--soft);
+}
+.scrub-ruler .tick.start {
+  height: 10px;
+  background: var(--ink);
+}
+.scrub-ruler .stage-no {
+  top: 12px;
+  font-size: 12px;
+  color: var(--muted);
 }
 
 /* Result */
@@ -668,9 +856,6 @@ textarea:focus-visible {
 .related {
   display: block;
   margin-top: 4px;
-}
-.result-actions {
-  display: flex;
 }
 
 @keyframes blink {

@@ -252,6 +252,34 @@ export function doneNodes(index: number | null): Set<NodeId> {
   return done;
 }
 
+/** Seconds a single message takes to cross its edge when the student steps through them. */
+export const STEP_SECONDS = 0.7;
+/** Where along its edge (0 to 1) a message stops, short of the box it is going to, so it hides nothing. */
+export const STEP_REST = 0.86;
+
+/** Every message of the five stages in order: what the replay lets a student step through. */
+export const TOTAL_FLOWS = STAGES.reduce((sum, stage) => sum + stage.flows.length, 0);
+
+export interface FlowPosition {
+  stageIndex: number;
+  flowIndex: number;
+}
+
+/** Where message number `position` (0-based, over all five stages) lives. Out of range is clamped. */
+export function locate(position: number): FlowPosition {
+  let left = Math.min(Math.max(Math.trunc(position), 0), TOTAL_FLOWS - 1);
+  for (const [stageIndex, stage] of STAGES.entries()) {
+    if (left < stage.flows.length) return { stageIndex, flowIndex: left };
+    left -= stage.flows.length;
+  }
+  return { stageIndex: STAGES.length - 1, flowIndex: 0 };
+}
+
+/** The position of the first message of a stage. */
+export function firstPositionOf(stageIndex: number): number {
+  return STAGES.slice(0, stageIndex).reduce((sum, stage) => sum + stage.flows.length, 0);
+}
+
 /** SMIL keyTimes (0..1, one loop) for the message at `position` of `count`. */
 export function slotWindow(position: number, count: number): { start: number; end: number } {
   const cycle = count * SLOT_SECONDS + PAUSE_SECONDS;

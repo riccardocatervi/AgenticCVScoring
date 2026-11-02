@@ -1,7 +1,7 @@
 import { doneNodes, stageFor, STAGES } from "../lib/stages";
 import { useElapsed, useRotating } from "../lib/useAnalysis";
 import { ArchitectureDiagram } from "./ArchitectureDiagram";
-import { FlowLog } from "./FlowLog";
+import { LoopFlowLog } from "./FlowLog";
 
 interface Props {
   status: "queued" | "processing";
@@ -52,7 +52,7 @@ export function ProcessingView({ status, step, startedAt }: Props) {
 
       <section className="stage">
         <ArchitectureDiagram stage={stage} done={doneNodes(index)} />
-        <FlowLog key={`log-${stageKey}`} stage={stage} />
+        <LoopFlowLog key={`log-${stageKey}`} stage={stage} />
       </section>
     </div>
   );
