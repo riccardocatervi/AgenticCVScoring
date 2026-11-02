@@ -1,15 +1,30 @@
-"""LLMClient for any OpenAI-compatible server (local Ollama, the FBK box, OpenAI).
+"""LLMClient for any OpenAI-compatible server: Ollama (default), OpenAI, FBK's gateway.
 
-This is the only file in the project allowed to import `openai`. Everything else talks to
-the `LLMClient` protocol in base.py, so swapping provider is a config change.
+This is the only module that imports `openai`. Retries and timeouts live here so the agents
+never have to think about them.
 """
 
+import asyncio
+import logging
+import random
+import time
 from typing import Any
 
+import openai
 from openai import AsyncOpenAI
 from pydantic import BaseModel
 
-from cvscore.llm.base import LLMResponse, Message
+from cvscore.llm.base import LLMError, LLMResponse, Message, ToolCall, Usage
+
+log = logging.getLogger("cvscore.llm")
+
+# Worth retrying: the server is busy or the network blinked. Anything else is our bug.
+_RETRYABLE = (
+    openai.RateLimitError,
+    openai.APITimeoutError,
+    openai.APIConnectionError,
+    openai.InternalServerError,
+)
 
 
 class OpenAICompatibleClient:
@@ -24,12 +39,13 @@ class OpenAICompatibleClient:
         backoff_base: float = 1.0,
         client: AsyncOpenAI | None = None,
     ):
-        """Keep the settings and build the SDK client.
-
-        Build it with max_retries=0: the SDK retries on its own and silently, and we want to
-        count and log every retry. `client` is there so tests can inject a fake SDK.
-        """
-        raise NotImplementedError
+        self._model = model
+        self._max_retries = max_retries
+        self._backoff_base = backoff_base
+        # max_retries=0: the SDK would retry silently, we want to see and count every retry.
+        self._client = client or AsyncOpenAI(
+            base_url=base_url, api_key=api_key, timeout=timeout, max_retries=0
+        )
 
     async def chat(
         self,
@@ -38,25 +54,61 @@ class OpenAICompatibleClient:
         response_schema: type[BaseModel] | None = None,
         max_tokens: int = 512,
     ) -> LLMResponse:
-        """One call to /chat/completions, translated to our own types.
+        params: dict[str, Any] = {
+            "model": self._model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": 0,
+        }
+        if tools:
+            params["tools"] = tools
+        if response_schema is not None:
+            params["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": response_schema.__name__,
+                    "schema": response_schema.model_json_schema(),
+                },
+            }
 
-        - temperature 0, max_tokens as given.
-        - tools go in as they are (already OpenAI-style).
-        - response_schema -> response_format {"type": "json_schema", ...} built from
-          schema.model_json_schema().
-        - Map the answer to LLMResponse: content, tool_calls (id, name, raw arguments string),
-          usage (0 if the server omits it), latency in seconds.
-        - No choices in the answer -> raise LLMError.
-        """
-        raise NotImplementedError
+        started = time.perf_counter()
+        completion = await self._create_with_retry(params)
+        latency = time.perf_counter() - started
+
+        if not completion.choices:
+            raise LLMError("the server returned no choices")
+        message = completion.choices[0].message
+        usage = completion.usage
+        return LLMResponse(
+            content=message.content,
+            tool_calls=[
+                ToolCall(id=call.id, name=call.function.name, arguments=call.function.arguments)
+                for call in (message.tool_calls or [])
+            ],
+            usage=Usage(
+                prompt_tokens=usage.prompt_tokens if usage else 0,
+                completion_tokens=usage.completion_tokens if usage else 0,
+            ),
+            latency_s=latency,
+        )
 
     async def _create_with_retry(self, params: dict[str, Any]):
-        """Call the SDK, retrying only what can get better by waiting.
-
-        Retry on RateLimitError, APITimeoutError, APIConnectionError, InternalServerError, with
-        exponential backoff and jitter: backoff_base * 2**attempt * random(0.5, 1.5). After
-        max_retries retries raise LLMError. Any other OpenAIError (400, 401...) is our bug or a
-        bad key: raise LLMError right away, retrying would only hide it.
-        Log each retry with the attempt number and the reason, never the messages.
-        """
-        raise NotImplementedError
+        for attempt in range(self._max_retries + 1):
+            try:
+                return await self._client.chat.completions.create(**params)
+            except _RETRYABLE as exc:
+                if attempt == self._max_retries:
+                    raise LLMError(
+                        f"model call failed after {attempt + 1} attempts: {exc}"
+                    ) from exc
+                delay = self._backoff_base * 2**attempt * random.uniform(0.5, 1.5)
+                log.warning(
+                    "llm retry attempt=%d reason=%s wait=%.1fs",
+                    attempt + 1,
+                    type(exc).__name__,
+                    delay,
+                )
+                await asyncio.sleep(delay)
+            except openai.OpenAIError as exc:
+                raise LLMError(f"model call rejected: {exc}") from exc
+        raise AssertionError("unreachable")
