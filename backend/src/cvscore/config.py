@@ -32,6 +32,9 @@ class Settings(ServiceSettings):
     job_ttl_seconds: int = 3600
     max_queue: int = 100  # waiting jobs before the API answers 503
     job_timeout_seconds: float = 600.0
+    # The same CV file and job description get the same answer (the model is not deterministic).
+    # Turn it off to run an analysis again each time, for example to measure how much it varies.
+    reuse_results: bool = True
 
 
 @lru_cache
