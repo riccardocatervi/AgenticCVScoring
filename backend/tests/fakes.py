@@ -93,7 +93,8 @@ def _fake_score(requirements: list[dict], matches: list[dict]) -> dict[str, Any]
         outcome = {"yes": 1.0, "partial": 0.5, "no": 0.0}[match["verdict"]] * match["verified"]
         rows.append(
             {
-                "requirement_id": req["id"], "kind": req["kind"], "verdict": match["verdict"],
+                "requirement_id": req["id"], "text": req["text"], "kind": req["kind"],
+                "verdict": match["verdict"],
                 "verified": match["verified"], "weight": weight, "outcome": outcome,
                 "points": weight * outcome,
             }

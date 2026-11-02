@@ -166,8 +166,8 @@ async def test_compute_score_goes_through_the_tool_and_returns_a_model():
 
 def score_for(reqs: list[Requirement]) -> ScoreResult:
     rows = [
-        {"requirement_id": r.id, "kind": r.kind, "verdict": "no", "verified": True, "weight": 1,
-         "outcome": 0.0, "points": 0.0}
+        {"requirement_id": r.id, "text": r.text, "kind": r.kind, "verdict": "no",
+         "verified": True, "weight": 1, "outcome": 0.0, "points": 0.0}
         for r in reqs
     ]  # fmt: skip
     return ScoreResult.model_validate(

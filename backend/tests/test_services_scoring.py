@@ -40,6 +40,14 @@ def test_weights_and_partial_credit():
     assert [r.points for r in result.per_requirement] == [3.0, 1.5, 0.0]
 
 
+def test_each_row_carries_the_requirement_text():
+    requirements = [Requirement(id=1, text="Python experience", kind="must")]
+
+    result = compute_score(requirements, [match(1, "yes")])
+
+    assert result.per_requirement[0].text == "Python experience"
+
+
 def test_unverified_evidence_is_worth_nothing():
     result = compute_score([req(1)], [match(1, "yes", verified=False)])
 
