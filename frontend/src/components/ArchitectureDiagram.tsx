@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from "react";
 import { cycleSeconds, slotWindow, type EdgeId, type NodeId, type Stage } from "../lib/stages";
 
 // One coordinate system (880 x 540) for everything: lines, boxes and moving messages.
@@ -60,9 +61,28 @@ function visibility(windows: { start: number; end: number }[]) {
 interface Props {
   stage: Stage;
   done: Set<NodeId>;
+  /** Change it to start the loop again from its first message (same stage). */
+  restartKey?: number;
 }
 
-export function ArchitectureDiagram({ stage, done }: Props) {
+export function ArchitectureDiagram({ stage, done, restartKey = 0 }: Props) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const stageId = stage.step ?? stage.title;
+
+  // The boxes stay mounted across stages so their colours can fade; only the moving parts below
+  // are replaced. SMIL counts from the moment the <svg> appeared, so rewind its clock whenever a
+  // new loop starts: the messages then begin together with the text log.
+  useLayoutEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    svg.setCurrentTime(0);
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      svg.pauseAnimations(); // no moving messages: the lit boxes and the log carry the story
+    } else {
+      svg.unpauseAnimations();
+    }
+  }, [stageId, restartKey]);
+
   const busy = new Set(stage.nodes);
   const cycle = cycleSeconds(stage);
   const count = stage.flows.length;
@@ -76,6 +96,7 @@ export function ArchitectureDiagram({ stage, done }: Props) {
 
   return (
     <svg
+      ref={svgRef}
       viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
       className="diagram"
       role="img"
@@ -94,7 +115,7 @@ export function ArchitectureDiagram({ stage, done }: Props) {
       </g>
 
       {/* the part of the line a message is crossing right now turns black */}
-      <g className="edge-lit">
+      <g className="edge-lit" key={`lit-${stageId}-${restartKey}`}>
         {[...windowsByEdge.entries()].map(([id, windows]) => {
           const { keyTimes, values } = visibility(windows);
           return (
@@ -138,7 +159,7 @@ export function ArchitectureDiagram({ stage, done }: Props) {
       })}
 
       {/* one chip per message; each one moves during its own slot of the loop */}
-      <g className="packets">
+      <g className="packets" key={`packets-${stageId}-${restartKey}`}>
         {stage.flows.map((flow, position) => {
           const { start, end } = slotWindow(position, count);
           const width = Math.round(flow.label.length * 7.1 + 24);
