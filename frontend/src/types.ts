@@ -5,14 +5,14 @@ export type Verdict = "yes" | "partial" | "no";
 
 export interface RequirementScore {
   requirement_id: number;
+  /** The requirement as extracted from the job description. */
+  text: string;
   kind: "must" | "nice";
   verdict: Verdict;
   verified: boolean;
   weight: number;
   outcome: number;
   points: number;
-  /** Not sent by the backend yet: the UI shows it when it appears. */
-  text?: string;
 }
 
 export interface ScoreBreakdown {

@@ -30,10 +30,10 @@ const RESULT = {
     nice_met: 1,
     nice_total: 2,
     per_requirement: [
-      { requirement_id: 1, kind: "must", verdict: "yes", verified: true, weight: 3, outcome: 1, points: 3 },
-      { requirement_id: 2, kind: "must", verdict: "partial", verified: true, weight: 3, outcome: 0.5, points: 1.5 },
-      { requirement_id: 3, kind: "must", verdict: "no", verified: true, weight: 3, outcome: 0, points: 0 },
-      { requirement_id: 4, kind: "nice", verdict: "yes", verified: true, weight: 1, outcome: 1, points: 1 },
+      { requirement_id: 1, text: "Experience with Python backend services", kind: "must", verdict: "yes", verified: true, weight: 3, outcome: 1, points: 3 },
+      { requirement_id: 2, text: "Containerization with Docker", kind: "must", verdict: "partial", verified: true, weight: 3, outcome: 0.5, points: 1.5 },
+      { requirement_id: 3, text: "Experience with REST API design", kind: "must", verdict: "no", verified: true, weight: 3, outcome: 0, points: 0 },
+      { requirement_id: 4, text: "Kubernetes in production", kind: "nice", verdict: "yes", verified: true, weight: 1, outcome: 1, points: 1 },
     ],
   },
   suggestions: [

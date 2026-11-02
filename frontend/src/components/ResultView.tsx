@@ -1,10 +1,6 @@
-import type { AnalysisResult, RequirementScore, Verdict } from "../types";
+import type { AnalysisResult, Verdict } from "../types";
 
 const VERDICT_LABEL: Record<Verdict, string> = { yes: "Yes", partial: "Partial", no: "No" };
-
-function label(req: RequirementScore): string {
-  return req.text ?? `Requirement ${req.requirement_id}`;
-}
 
 interface Props {
   result: AnalysisResult;
@@ -55,7 +51,7 @@ export function ResultView({ result, onReset }: Props) {
             <li key={req.requirement_id} className="row">
               <span className={`glyph ${req.verdict}`} aria-hidden="true" />
               <span className="row-text">
-                {label(req)}
+                {req.text}
                 {!req.verified && <span className="mono muted small unverified">quote not verified</span>}
               </span>
               <span className="mono muted small">{req.kind === "must" ? "MUST" : "NICE"}</span>
