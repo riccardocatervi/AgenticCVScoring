@@ -69,6 +69,7 @@ Poll this until `status` is `done` or `failed`.
     "per_requirement": [
       {
         "requirement_id": 1,
+        "text": "Experience with Python backend services",
         "kind": "must",
         "verdict": "yes | partial | no",
         "verified": true,
