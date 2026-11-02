@@ -1,0 +1,6 @@
+node_modules/
+dist/
+*.tsbuildinfo
+
+# The root .gitignore (Python template) ignores every "lib/" directory
+!src/lib/

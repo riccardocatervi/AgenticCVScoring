@@ -1,0 +1,49 @@
+from functools import lru_cache
+from pathlib import Path
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class ServiceSettings(BaseSettings):
+    """What the gateway and the services need. No LLM here: they must run without it."""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",  # looked up in the current working directory first
+        env_file_depth=2,  # then in the parent directory (the repo root)
+        extra="ignore",  # unknown lines in .env are discarded instead of failing
+    )
+
+    storage_dir: Path = Path("data")
+    mcp_gateway_url: str = "http://127.0.0.1:8765/mcp"
+
+
+class Settings(ServiceSettings):
+    """Everything the API, the job workers and the agents need."""
+
+    # LLM backend (any OpenAI-compatible endpoint: local Ollama, FBK server, OpenAI)
+    llm_base_url: str = "http://localhost:11434/v1"
+    llm_api_key: str  # no default: it is required, startup fails if it is missing
+    llm_model: str  # no default: depends on what the server exposes
+    llm_timeout_seconds: float = 60.0
+
+    # Job processing
+    k_consumers: int = 2
+    max_agent_steps: int = 10
+    job_ttl_seconds: int = 3600
+    max_queue: int = 100  # waiting jobs before the API answers 503
+    job_timeout_seconds: float = 600.0
+    # The same CV file and job description get the same answer (the model is not deterministic).
+    # Turn it off to run an analysis again each time, for example to measure how much it varies.
+    reuse_results: bool = True
+
+
+@lru_cache
+def get_settings() -> Settings:
+    """Single shared instance, built on first use (not at import time)."""
+    return Settings()
+
+
+@lru_cache
+def get_service_settings() -> ServiceSettings:
+    """Same idea for processes that do not talk to the LLM (gateway, services)."""
+    return ServiceSettings()
